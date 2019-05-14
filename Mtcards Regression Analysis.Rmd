@@ -1,0 +1,128 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+
+---
+# Regression Models Final Project
+### Written by: Andrew Leonard
+### John Hopkins Data Science Specialization: Regression Models
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6, fig.height = 3)
+#mean of mpg for auto versus manual
+a <- mean(mtcars$mpg[which(mtcars$am == 1)])
+m <- mean(mtcars$mpg[which(mtcars$am == 0)])
+diff <- a-m
+diff <- round(diff, 3)
+```
+## Executive Summary
+In analyzing data on 32 different car models, I look to answer two questions:
+
+* Is an automatic or manual transmission better for MPG?
+* Can we quantify the MPG difference between automatic and manual transmissions?
+
+After statistical inference analysis, I have concluded that, at a 5% confidence level, manual transmission cars have higher MPG than automatic cars. The average difference in MPG for the data analyzed is `r diff` MPG, in favor of manual cars.
+
+Through regression modeling, however, I cannot conclude that transmission type is a good predictor of MPG. While transmission type appears correlated with MPG, it does not appear as a causal variable. In the following report, I outline how the above conclusions have been reached and offer a better model, using weight and cylinders, to predict MPG. Additional figures and diagnostic testing can be found in the Appendix.
+
+## Exploratory Analysis
+The mean MPG for auto versus manual transmission.
+```{r}
+#mean of mpg for auto versus manual
+mean(mtcars$mpg[which(mtcars$am == 1)])
+mean(mtcars$mpg[which(mtcars$am == 0)])
+
+#plot graph
+with(mtcars, plot(am, mpg,pch = 21, bg = "lightblue", cex = 1, main = "MPG and Transmission Type", xlab = "Transmission: 0 = auto, 1 = manual", ylab = "MPG"))
+
+#test if difference in means of two types is statistically different
+ttest <- t.test(mtcars$mpg[which(mtcars$am == 1)], mtcars$mpg[which(mtcars$am == 0)])
+pvalue <- ttest$p.value
+```
+With a P-value of `r pvalue`, we can infer that there is a difference in average MPG for automatic and manual transmission types. 
+
+## Model Fitting
+While it does appear that transmission type is correlated with MPG, it remains unclear if transmission type is a good predictor of MPG. Let's explore this by looking at multiple linear model fits.
+
+First, let's fit a model with only transmission type as a predictor of MPG.
+```{r}
+fit <- lm(mpg ~ factor(am), data = mtcars)
+
+round(summary(fit)$coef,6)
+```
+From our first look, it seems transmission type may be a good predictor of MPG. However, it also appears both weight and number of cylinders have a linear relationship with MPG. See figure A in Appendix for graph. Let's fit two more models introducing weight and number of cylinders as variables.
+
+```{r}
+fit2 <- lm(mpg ~ factor(am) + wt, data = mtcars)
+fit3 <- lm(mpg ~ factor(am) + wt + factor(cyl), data = mtcars)
+anova(fit, fit2, fit3)
+```
+Through our anova function, we see that adding both weight and cylinders has a statistically significant effect on MPG at at 5% confidence interval.
+
+Next, let's look at a model without transmission type as a variable, and then add it back in as a final variable to see if it has a significant effect on MPG.
+```{r}
+fit4 <- lm(mpg~wt, data = mtcars)
+fit5 <- lm(mpg ~ wt + factor(cyl), data = mtcars)
+anova(fit4,fit5, fit3)
+```
+Our anova test shows that adding transmission type as a variable does not have a statistically significant effect on MPG, with a P-value over .9. 
+
+I added each additional variable in the dataset with wt and cyl to see if any other variable had a statistically significant effect on MPG outside of wt and cyl. All P-values of added variables were well above .05. Analysis of each not included in report. Here is an example trial with disp as a factor. 
+```{r}
+fit6 <- lm(mpg~wt+factor(cyl)+disp, data = mtcars)
+round(summary(fit6)$coef,3)
+```
+
+## Conclusion
+While it does appear that manual cars tend to have higher MPG than automatic cars, we have found better predictors of MPG. Our model with wt and cyl as our predictors has the most statistical significance on MPG. 
+
+The appendix will look at the residuals of analyzed models to further prove this analysis. We will also interpret the coefficients of our selected model.
+
+## Appendix
+### Figure A
+Plots of weight and cylinders with MPG. Appears to be a linear relationship for both variables.
+```{r}
+with(mtcars, plot(wt, mpg, pch = 21, bg = "lightblue", cex = 1, main = "MPG and Car Weight", xlab = "Weight of Car (1000lbs)", ylab = "MPG"))
+with(mtcars, plot(cyl, mpg, pch = 21, bg = "lightblue", cex = 1, main = "MPG and Number of Cylinders", xlab = "Number of Cylinders", ylab = "MPG"))
+
+```
+
+## Diagnostic Testing
+### Residuals
+```{r}
+#sum of squared residuals after fitting first model (fit)
+resfit <- round(sum(resid(fit)^2),3)
+
+#after adding weight and cyl (fit3)
+resfit3 <- round(sum(resid(fit3)^2),3)
+
+#including only weight and cyl (fit5)
+resfit5 <- round(sum(resid(fit5)^2),3)
+```
+By looking at our sums of the squared residuals for model fit, fit3 and fit5, it is clear including wt and cyl as predictors and excluding transmission as a predictor is a good choice. 
+
+Our sum of squared residuals for model one is `r resfit`. After adding wt and cyl, our sum of squared residuals for model three is `r resfit3`. When we only include wt and cyl, and exclude transmission type, or sum of squared residuals barely changes at `r resfit5`
+
+Finally, we can graph the residuals to see that there is almost no change in a model that includes wt, cyl, and transmission (fit3) with a model that only includes wt and cyl (fit5).
+```{r}
+par(mfrow=c(1,2)) 
+plot(resid(fit3), pch = 21, bg = "lightblue", cex = 1, ylab = "Residuals for Fit3")
+plot(resid(fit5), pch = 21, bg = "lightblue", cex = 1, ylab = "Residuals for Fit5")
+```
+
+## Interpretation fo Coefficients
+```{r}
+fit5[1]$coefficients
+
+car <- round(predict(fit5, newdata = data.frame(wt = 1, cyl = 8)),3)
+```
+The intercept assumes a 4 cylinder car. For each 1000 lbs increase in weight, we will see a 3.2MPG reduction. If the car is 6 cylinders, we will see a 4.3MPG reduction. If the car is 8 cylinders, we will se a 6.1MPG reduction. 
+
+For example, a car weighing 1000 pounds with 8 cylinders will have a predicted MPG of `r car`.
+
+## Additional Diagnostics
+While there are a few outliners, model reasonably resembles a normal distribution.
+```{r}
+#qqplot 
+plot(fit5, which=2)
+```
